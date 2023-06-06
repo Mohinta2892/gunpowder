@@ -16,7 +16,6 @@ import numpy as np
 
 class NodeDependenciesTestSource(BatchProvider):
     def setup(self):
-
         self.provides(
             ArrayKeys.A,
             ArraySpec(roi=Roi((0, 0, 0), (1000, 1000, 1000)), voxel_size=(4, 4, 4)),
@@ -28,24 +27,22 @@ class NodeDependenciesTestSource(BatchProvider):
         )
 
     def provide(self, request):
-
         batch = Batch()
 
         # have the pixels encode their position
-        for (array_key, spec) in request.array_specs.items():
-
+        for array_key, spec in request.array_specs.items():
             roi = spec.roi
 
             for d in range(3):
-                assert roi.get_begin()[d] % 4 == 0, "roi %s does not align with voxels"
+                assert roi.begin[d] % 4 == 0, "roi %s does not align with voxels"
 
             data_roi = roi / 4
 
             # the z,y,x coordinates of the ROI
             meshgrids = np.meshgrid(
-                range(data_roi.get_begin()[0], data_roi.get_end()[0]),
-                range(data_roi.get_begin()[1], data_roi.get_end()[1]),
-                range(data_roi.get_begin()[2], data_roi.get_end()[2]),
+                range(data_roi.begin[0], data_roi.end[0]),
+                range(data_roi.begin[1], data_roi.end[1]),
+                range(data_roi.begin[2], data_roi.end[2]),
                 indexing="ij",
             )
             data = meshgrids[0] + meshgrids[1] + meshgrids[2]
@@ -60,15 +57,12 @@ class NodeDependenciesTestNode(BatchFilter):
     """Creates C from B."""
 
     def __init__(self):
-
         self.context = (20, 20, 20)
 
     def setup(self):
-
         self.provides(ArrayKeys.C, self.spec[ArrayKeys.B])
 
     def prepare(self, request):
-
         assert ArrayKeys.C in request
 
         dependencies = BatchRequest()
@@ -93,7 +87,6 @@ class NodeDependenciesTestNode(BatchFilter):
 
 class TestNodeDependencies(ProviderTest):
     def test_dependecies(self):
-
         ArrayKey("A")
         ArrayKey("B")
         ArrayKey("C")

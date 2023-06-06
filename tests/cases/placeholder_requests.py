@@ -28,7 +28,6 @@ import copy
 
 class PointTestSource3D(BatchProvider):
     def setup(self):
-
         self.points = [
             Node(0, np.array([0, 10, 0])),
             Node(1, np.array([0, 30, 0])),
@@ -52,17 +51,15 @@ class PointTestSource3D(BatchProvider):
         )
 
     def point_to_voxel(self, array_roi, location):
-
         # location is in world units, get it into voxels
         location = location / self.spec[ArrayKeys.TEST_LABELS].voxel_size
 
         # shift location relative to beginning of array roi
-        location -= array_roi.get_begin() / self.spec[ArrayKeys.TEST_LABELS].voxel_size
+        location -= array_roi.begin / self.spec[ArrayKeys.TEST_LABELS].voxel_size
 
         return tuple(slice(int(l - 2), int(l + 3)) for l in location)
 
     def provide(self, request):
-
         batch = Batch()
 
         if GraphKeys.TEST_POINTS in request:
@@ -80,7 +77,7 @@ class PointTestSource3D(BatchProvider):
             roi_array = request[ArrayKeys.TEST_LABELS].roi
             roi_voxel = roi_array // self.spec[ArrayKeys.TEST_LABELS].voxel_size
 
-            data = np.zeros(roi_voxel.get_shape(), dtype=np.uint32)
+            data = np.zeros(roi_voxel.shape, dtype=np.uint32)
             data[:, ::2] = 100
 
             for point in self.points:
@@ -96,7 +93,6 @@ class PointTestSource3D(BatchProvider):
 
 class TestPlaceholderRequest(ProviderTest):
     def test_without_placeholder(self):
-
         test_labels = ArrayKey("TEST_LABELS")
         test_points = GraphKey("TEST_POINTS")
 
@@ -113,7 +109,6 @@ class TestPlaceholderRequest(ProviderTest):
 
         with build(pipeline):
             for i in range(2):
-
                 request_size = Coordinate((40, 40, 40))
 
                 request_a = BatchRequest(random_seed=i)
@@ -131,7 +126,6 @@ class TestPlaceholderRequest(ProviderTest):
                 self.assertIn(test_labels, batch_b)
 
     def test_placeholder(self):
-
         test_labels = ArrayKey("TEST_LABELS")
         test_points = GraphKey("TEST_POINTS")
 
@@ -148,7 +142,6 @@ class TestPlaceholderRequest(ProviderTest):
 
         with build(pipeline):
             for i in range(2):
-
                 request_size = Coordinate((40, 40, 40))
 
                 request_a = BatchRequest(random_seed=i)

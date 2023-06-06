@@ -13,6 +13,14 @@ logger = logging.getLogger(__name__)
 class Snapshot(BatchFilter):
     """Save a passing batch in an HDF file.
 
+    The default behaviour is to periodically save a snapshot after
+    ``every`` iterations.
+
+    Data-dependent criteria for saving can be implemented by subclassing and
+    overwriting :func:`write_if`. This method is applied as an additional
+    filter to the batches picked for periodic saving. It should return ``True``
+    if a batch meets the criteria for saving.
+
     Args:
 
         dataset_names (``dict``, :class:`ArrayKey` -> ``string``):
@@ -60,7 +68,7 @@ class Snapshot(BatchFilter):
         store_value_range (``bool``):
 
             If set to ``True``, store range of values in data set attributes.
-        """
+    """
 
     def __init__(
         self,
@@ -90,11 +98,31 @@ class Snapshot(BatchFilter):
 
         self.mode = "w"
 
-    def setup(self):
+    def write_if(self, batch):
+        """To be implemented in subclasses.
 
+        This function is run in :func:`process` and acts as a data-dependent
+        filter for saving snapshots.
+
+        Args:
+
+            batch (:class:`Batch`):
+
+                The batch received from upstream.
+
+        Returns:
+
+            ``True`` if ``batch`` should be written to snapshot, ``False``
+            otherwise.
+        """
+
+        return True
+
+    def setup(self):
         for key, _ in self.additional_request.items():
             assert key in self.dataset_names, (
-                "%s requested but not in dataset_names"% key)
+                "%s requested but not in dataset_names" % key
+            )
 
         for array_key in self.additional_request.array_specs.keys():
             spec = self.spec[array_key]
@@ -104,7 +132,6 @@ class Snapshot(BatchFilter):
             self.updates(graph_key, spec)
 
     def prepare(self, request):
-
         deps = BatchRequest()
         for key, spec in request.items():
             if key in self.dataset_names:
@@ -122,16 +149,15 @@ class Snapshot(BatchFilter):
                     deps[graph_key] = spec
 
             for key in self.dataset_names.keys():
-                assert key in deps, (
-                    "%s wanted for %s, but not in request." %
-                    (key, self.name()))
+                assert key in deps, "%s wanted for %s, but not in request." % (
+                    key,
+                    self.name(),
+                )
 
         return deps
 
     def process(self, batch, request):
-
-        if self.record_snapshot:
-
+        if self.record_snapshot and self.write_if(batch):
             try:
                 os.makedirs(self.output_dir)
             except:
@@ -153,8 +179,7 @@ class Snapshot(BatchFilter):
                 open_func = h5py.File
 
             with open_func(snapshot_name, self.mode) as f:
-                for (array_key, array) in batch.arrays.items():
-
+                for array_key, array in batch.arrays.items():
                     if array_key not in self.dataset_names:
                         continue
 
@@ -177,7 +202,7 @@ class Snapshot(BatchFilter):
 
                     if not array.spec.nonspatial:
                         if array.spec.roi is not None:
-                            dataset.attrs["offset"] = array.spec.roi.get_offset()
+                            dataset.attrs["offset"] = array.spec.roi.offset
                         dataset.attrs["resolution"] = self.spec[array_key].voxel_size
 
                     if self.store_value_range:
@@ -190,7 +215,7 @@ class Snapshot(BatchFilter):
                     for attribute_name, attribute in array.attrs.items():
                         dataset.attrs[attribute_name] = attribute
 
-                for (graph_key, graph) in batch.graphs.items():
+                for graph_key, graph in batch.graphs.items():
                     if graph_key not in self.dataset_names:
                         continue
 

@@ -14,21 +14,17 @@ class ExampleSourceSqueeze(gp.BatchProvider):
         self.labels = gp.ArrayKey("LABELS")
 
         self.array_spec_raw = gp.ArraySpec(
-            roi=self.roi,
-            voxel_size=self.voxel_size,
-            dtype='uint8',
-            interpolatable=True
+            roi=self.roi, voxel_size=self.voxel_size, dtype="uint8", interpolatable=True
         )
 
         self.array_spec_labels = gp.ArraySpec(
             roi=self.roi,
             voxel_size=self.voxel_size,
-            dtype='uint64',
-            interpolatable=False
+            dtype="uint64",
+            interpolatable=False,
         )
 
     def setup(self):
-
         self.provides(self.raw, self.array_spec_raw)
         self.provides(self.labels, self.array_spec_labels)
 
@@ -39,16 +35,10 @@ class ExampleSourceSqueeze(gp.BatchProvider):
         raw_spec = copy.deepcopy(self.array_spec_raw)
         raw_spec.roi = request[self.raw].roi
 
-        raw_shape = request[self.raw].roi.get_shape() / self.voxel_size
+        raw_shape = request[self.raw].roi.shape / self.voxel_size
 
         outputs[self.raw] = gp.Array(
-            np.random.randint(
-                0,
-                256,
-                raw_shape,
-                dtype=raw_spec.dtype
-            ),
-            raw_spec
+            np.random.randint(0, 256, raw_shape, dtype=raw_spec.dtype), raw_spec
         )
 
         # Unsqueeze
@@ -59,17 +49,13 @@ class ExampleSourceSqueeze(gp.BatchProvider):
         labels_spec = copy.deepcopy(self.array_spec_labels)
         labels_spec.roi = request[self.labels].roi
 
-        labels_shape = request[self.labels].roi.get_shape() / self.voxel_size
+        labels_shape = request[self.labels].roi.shape / self.voxel_size
 
-        labels = np.ones(
-            labels_shape,
-            dtype=labels_spec.dtype
-        )
+        labels = np.ones(labels_shape, dtype=labels_spec.dtype)
         outputs[self.labels] = gp.Array(labels, labels_spec)
 
         # Unsqueeze
-        outputs[self.labels].data = np.expand_dims(
-            outputs[self.labels].data, axis=0)
+        outputs[self.labels].data = np.expand_dims(outputs[self.labels].data, axis=0)
 
         return outputs
 
@@ -110,10 +96,7 @@ class TestSqueeze(ProviderTest):
         request.add(raw, input_size)
         request.add(labels, input_size)
 
-        pipeline = (
-            ExampleSourceSqueeze(voxel_size)
-            + gp.Squeeze([raw], axis=2)
-        )
+        pipeline = ExampleSourceSqueeze(voxel_size) + gp.Squeeze([raw], axis=2)
 
         with self.assertRaises(gp.PipelineRequestError):
             with gp.build(pipeline) as p:

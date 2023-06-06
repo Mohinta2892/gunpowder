@@ -1,101 +1,75 @@
-from .provider_test import ProviderTest
+from .helper_sources import ArraySource
+
 from gunpowder import *
 import numpy as np
 
-class DownSampleTestSource(BatchProvider):
 
-    def setup(self):
+def test_output():
+    raw = ArrayKey("RAW")
+    raw_downsampled = ArrayKey("RAW_DOWNSAMPLED")
+    gt = ArrayKey("GT")
+    gt_downsampled = ArrayKey("GT_LABELS_DOWNSAMPLED")
 
-        self.provides(
-            ArrayKeys.RAW,
-            ArraySpec(
-                roi=Roi((0, 0, 0), (1000, 1000, 1000)),
-                voxel_size=(4, 4, 4)))
+    request = BatchRequest()
+    request.add(raw, (200, 200, 200))
+    request.add(raw_downsampled, (120, 120, 120))
+    request.add(gt, (200, 200, 200))
+    request.add(gt_downsampled, (200, 200, 200))
 
-        self.provides(
-            ArrayKeys.GT_LABELS,
-            ArraySpec(
-                roi=Roi((0, 0, 0), (1000, 1000, 1000)),
-                voxel_size=(4, 4, 4)))
+    meshgrids = np.meshgrid(range(0, 250), range(0, 250), range(0, 250), indexing="ij")
+    data = meshgrids[0] + meshgrids[1] + meshgrids[2]
 
-    def provide(self, request):
+    raw_source = ArraySource(
+        raw,
+        Array(
+            np.stack([data, data]),
+            ArraySpec(roi=Roi((0, 0, 0), (1000, 1000, 1000)), voxel_size=(4, 4, 4)),
+        ),
+    )
+    gt_source = ArraySource(
+        gt,
+        Array(
+            data,
+            ArraySpec(roi=Roi((0, 0, 0), (1000, 1000, 1000)), voxel_size=(4, 4, 4)),
+        ),
+    )
 
-        batch = Batch()
+    pipeline = (
+        (raw_source, gt_source)
+        + MergeProvider()
+        + DownSample(raw, 2, raw_downsampled)
+        + DownSample(gt, (2, 2, 2), gt_downsampled)
+    )
 
-        # have the pixels encode their position
-        for (array_key, spec) in request.array_specs.items():
+    with build(pipeline):
+        batch = pipeline.request_batch(request)
 
-            roi = spec.roi
-
-            for d in range(3):
-                assert roi.get_begin()[d]%4 == 0, "roi %s does not align with voxels"
-
-            data_roi = roi/4
-
+    for array_key, array in batch.arrays.items():
+        # assert that pixels encode their position for supposedly unaltered
+        # arrays
+        if array_key in [raw, gt]:
             # the z,y,x coordinates of the ROI
+            roi = array.spec.roi / 4
             meshgrids = np.meshgrid(
-                    range(data_roi.get_begin()[0], data_roi.get_end()[0]),
-                    range(data_roi.get_begin()[1], data_roi.get_end()[1]),
-                    range(data_roi.get_begin()[2], data_roi.get_end()[2]), indexing='ij')
+                range(roi.begin[0], roi.end[0]),
+                range(roi.begin[1], roi.end[1]),
+                range(roi.begin[2], roi.end[2]),
+                indexing="ij",
+            )
             data = meshgrids[0] + meshgrids[1] + meshgrids[2]
 
-            spec = self.spec[array_key].copy()
-            spec.roi = roi
-            batch.arrays[array_key] = Array(
-                    data,
-                    spec)
-        return batch
-
-class TestDownSample(ProviderTest):
-
-    def test_output(self):
-
-        source = DownSampleTestSource()
-
-        ArrayKey('RAW_DOWNSAMPLED')
-        ArrayKey('GT_LABELS_DOWNSAMPLED')
-
-        request = BatchRequest()
-        request.add(ArrayKeys.RAW, (200,200,200))
-        request.add(ArrayKeys.RAW_DOWNSAMPLED, (120,120,120))
-        request.add(ArrayKeys.GT_LABELS, (200,200,200))
-        request.add(ArrayKeys.GT_LABELS_DOWNSAMPLED, (200,200,200))
-
-        pipeline = (
-                DownSampleTestSource() +
-                DownSample(ArrayKeys.RAW, 2, ArrayKeys.RAW_DOWNSAMPLED) +
-                DownSample(ArrayKeys.GT_LABELS, 2, ArrayKeys.GT_LABELS_DOWNSAMPLED)
-        )
-
-        with build(pipeline):
-            batch = pipeline.request_batch(request)
-
-        for (array_key, array) in batch.arrays.items():
-
-            # assert that pixels encode their position for supposedly unaltered 
-            # arrays
-            if array_key in [ArrayKeys.RAW, ArrayKeys.GT_LABELS]:
-
-                # the z,y,x coordinates of the ROI
-                roi = array.spec.roi/4
-                meshgrids = np.meshgrid(
-                        range(roi.get_begin()[0], roi.get_end()[0]),
-                        range(roi.get_begin()[1], roi.get_end()[1]),
-                        range(roi.get_begin()[2], roi.get_end()[2]), indexing='ij')
-                data = meshgrids[0] + meshgrids[1] + meshgrids[2]
-
-                self.assertTrue(np.array_equal(array.data, data), str(array_key))
-
-            elif array_key == ArrayKeys.RAW_DOWNSAMPLED:
-
-                self.assertTrue(array.data[0,0,0] == 30)
-                self.assertTrue(array.data[1,0,0] == 32)
-
-            elif array_key == ArrayKeys.GT_LABELS_DOWNSAMPLED:
-
-                self.assertTrue(array.data[0,0,0] == 0)
-                self.assertTrue(array.data[1,0,0] == 2)
-
+            if array_key == raw:
+                assert np.array_equal(array.data[0], data), str(array_key)
             else:
+                assert np.array_equal(array.data, data), str(array_key)
 
-                self.assertTrue(False, "unexpected array type")
+        elif array_key == raw_downsampled:
+            assert array.data[0, 0, 0, 0] == 30
+            assert array.data[1, 1, 0, 0] == 32
+
+        elif array_key == gt_downsampled:
+            assert array.data[0, 0, 0] == 0
+            assert array.data[1, 0, 0] == 2
+
+        else:
+            assert False, "unexpected array type"

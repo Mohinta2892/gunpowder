@@ -116,6 +116,11 @@ CsvPointsSource
 ^^^^^^^^^^^^^^^
   .. autoclass:: CsvPointsSource
 
+GraphSource
+^^^^^^^^^^^
+
+  .. autoclass:: GraphSource
+
 .. _sec_api_augmentation_nodes:
 
 Augmentation Nodes
@@ -125,9 +130,9 @@ DefectAugment
 ^^^^^^^^^^^^^
   .. autoclass:: DefectAugment
 
-ElasticAugment
+DeformAugment
 ^^^^^^^^^^^^^^
-  .. autoclass:: ElasticAugment
+  .. autoclass:: DeformAugment
 
 IntensityAugment
 ^^^^^^^^^^^^^^^^
@@ -166,14 +171,15 @@ SpecifiedLocation
 ^^^^^^^^^^^^^^^^^
   .. autoclass:: SpecifiedLocation
 
+IterateLocations
+^^^^^^^^^^^^^^^^
+
+  .. autoclass:: IterateLocations
+
 .. _sec_api_array_manipulation_nodes:
 
 Array Manipulation Nodes
 ------------------------
-
-AsType
-^^^^^^^
-  .. autoclass:: AsType
 
 Squeeze
 ^^^^^^^
@@ -187,10 +193,6 @@ Unsqueeze
 
 Image Processing Nodes
 ----------------------
-
-Resample
-^^^^^^^^^^
-  .. autoclass:: Resample
 
 DownSample
 ^^^^^^^^^^
@@ -277,6 +279,17 @@ tensorflow.Train
   .. autoclass:: Train
 
 tensorflow.Predict
+^^^^^^^^^^^^^^^^^^
+  .. autoclass:: Predict
+
+
+  .. automodule:: gunpowder.jax
+
+jax.Train
+^^^^^^^^^^^^^^^^
+  .. autoclass:: Train
+
+jax.Predict
 ^^^^^^^^^^^^^^^^^^
   .. autoclass:: Predict
 

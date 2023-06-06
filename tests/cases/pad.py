@@ -20,7 +20,6 @@ import numpy as np
 
 class ExampleSourcePad(BatchProvider):
     def setup(self):
-
         self.provides(
             ArrayKeys.TEST_LABELS,
             ArraySpec(roi=Roi((200, 20, 20), (1800, 180, 180)), voxel_size=(20, 2, 2)),
@@ -31,13 +30,12 @@ class ExampleSourcePad(BatchProvider):
         )
 
     def provide(self, request):
-
         batch = Batch()
 
         roi_array = request[ArrayKeys.TEST_LABELS].roi
         roi_voxel = roi_array // self.spec[ArrayKeys.TEST_LABELS].voxel_size
 
-        data = np.zeros(roi_voxel.get_shape(), dtype=np.uint32)
+        data = np.zeros(roi_voxel.shape, dtype=np.uint32)
         data[:, ::2] = 100
 
         spec = self.spec[ArrayKeys.TEST_LABELS].copy()
@@ -49,7 +47,6 @@ class ExampleSourcePad(BatchProvider):
 
 class TestPad(ProviderTest):
     def test_output(self):
-
         graph = GraphKey("TEST_GRAPH")
         labels = ArrayKey("TEST_LABELS")
 
@@ -60,7 +57,6 @@ class TestPad(ProviderTest):
         )
 
         with build(pipeline):
-
             self.assertTrue(
                 pipeline.spec[labels].roi == Roi((180, 0, 0), (1840, 220, 220))
             )

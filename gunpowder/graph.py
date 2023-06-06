@@ -107,9 +107,7 @@ class Node(Freezable):
         node_id = attrs["id"]
         location = attrs["location"]
         temporary = attrs.get("temporary", False)
-        return cls(
-            id=node_id, location=location, temporary=temporary, attrs=attrs
-        )
+        return cls(id=node_id, location=location, temporary=temporary, attrs=attrs)
 
     def __str__(self):
         return f"Node({self.temporary}) ({self.id}) at ({self.location})"
@@ -240,6 +238,8 @@ class Graph(Freezable):
     @property
     def nodes(self):
         for node_id, node_attrs in self.__graph.nodes.items():
+            if "id" not in node_attrs:
+                node_attrs["id"] = node_id
             v = Node.from_attrs(node_attrs)
             if not np.issubdtype(v.location.dtype, self.spec.dtype):
                 raise Exception(
@@ -494,8 +494,8 @@ class Graph(Freezable):
         with np.errstate(divide="ignore", invalid="ignore"):
             bb_x = np.asarray(
                 [
-                    (np.asarray(bb.get_begin()) - inside) / offset,
-                    (np.asarray(bb.get_end()) - inside) / offset,
+                    (np.asarray(bb.begin) - inside) / offset,
+                    (np.asarray(bb.end) - inside) / offset,
                 ],
                 dtype=self.spec.dtype,
             )
@@ -504,9 +504,9 @@ class Graph(Freezable):
             s = np.min(bb_x[np.logical_and((bb_x >= 0), (bb_x <= 1))])
 
         new_location = inside + s * distance * direction
-        upper = np.array(bb.get_end(), dtype=self.spec.dtype)
+        upper = np.array(bb.end, dtype=self.spec.dtype)
         new_location = np.clip(
-            new_location, bb.get_begin(), upper - upper * np.finfo(self.spec.dtype).eps
+            new_location, bb.begin, upper - upper * np.finfo(self.spec.dtype).eps
         )
         return new_location
 
@@ -574,7 +574,10 @@ class Graph(Freezable):
     @classmethod
     def from_nx_graph(cls, graph, spec):
         """
-        Create a gunpowder graph from a networkx graph
+        Create a gunpowder graph from a networkx graph.
+        The network graph is expected to have a "location"
+        attribute for each node. If it is a subclass of a networkx
+        graph with extra functionality, this may not work.
         """
         if spec.directed is None:
             spec.directed = graph.is_directed()

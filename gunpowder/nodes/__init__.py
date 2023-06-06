@@ -11,13 +11,16 @@ from .daisy_request_blocks import DaisyRequestBlocks
 from .defect_augment import DefectAugment
 from .downsample import DownSample
 from .dvid_source import DvidSource
+from .deform_augment import DeformAugment
 from .elastic_augment import ElasticAugment
 from .exclude_labels import ExcludeLabels
+from .graph_source import GraphSource
 from .grow_boundary import GrowBoundary
 from .hdf5_source import Hdf5Source
 from .hdf5_write import Hdf5Write
 from .intensity_augment import IntensityAugment
 from .intensity_scale_shift import IntensityScaleShift
+from .iterate_locations import IterateLocations
 from .klb_source import KlbSource
 from .merge_provider import MergeProvider
 from .noise_augment import NoiseAugment

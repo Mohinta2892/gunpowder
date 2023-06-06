@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-from . import nodes
 from .nodes import *
 
 from .array import Array, ArrayKey, ArrayKeys
@@ -19,4 +18,5 @@ from .version_info import _version as version
 import gunpowder.contrib
 import gunpowder.tensorflow
 import gunpowder.torch
+import gunpowder.jax
 import gunpowder.zoo
