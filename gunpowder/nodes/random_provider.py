@@ -1,4 +1,3 @@
-import copy
 import numpy as np
 
 from gunpowder.array import Array
@@ -10,7 +9,7 @@ from .batch_provider import BatchProvider
 class RandomProvider(BatchProvider):
     """Randomly selects one of the upstream providers::
 
-        (a + b + c) + RandomProvider()
+        (a, b, c) + RandomProvider()
 
     will create a provider that randomly relays requests to providers ``a``,
     ``b``, or ``c``. Array and point keys of ``a``, ``b``, and ``c`` should be
@@ -57,7 +56,7 @@ class RandomProvider(BatchProvider):
         # advertise outputs only if all upstream providers have them
         for provider in self.get_upstream_providers():
             if common_spec is None:
-                common_spec = copy.deepcopy(provider.spec)
+                common_spec = provider.spec.copy()
             else:
                 for key, spec in list(common_spec.items()):
                     if key not in provider.spec:
@@ -70,9 +69,6 @@ class RandomProvider(BatchProvider):
             self.provides(self.random_provider_key, ArraySpec(nonspatial=True))
 
     def provide(self, request):
-        # Random seed is set in provide rather than prepare since this node
-        # is not a batch filter
-        np.random.seed(request.random_seed)
 
         if self.random_provider_key is not None:
             del request[self.random_provider_key]
