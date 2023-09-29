@@ -89,3 +89,9 @@ try:
     import optax
 except ImportError as e:
     optax = NoSuchModule("optax")
+    
+try: 
+    import wandb
+    wandb.login()
+except ImportError as e: 
+    wandb = NoSuchModule("wandb")
