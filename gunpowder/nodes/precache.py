@@ -1,4 +1,3 @@
-import copy
 import logging
 import multiprocessing
 import time
@@ -91,7 +90,7 @@ class PreCache(BatchFilter):
                     logger.info("new request received, stopping current workers...")
                     self.workers.stop()
 
-                self.current_request = copy.deepcopy(request)
+                self.current_request = request.copy()
 
                 logger.info(
                     "starting new set of workers (%s, cache size %s)...",
@@ -127,9 +126,5 @@ class PreCache(BatchFilter):
         return batch
 
     def _run_worker(self):
-        request = copy.deepcopy(self.current_request)
-        # Note that using a precache node breaks determinism in batches recieved since we do not
-        # keep a mapping of the order in which random seeds were used, and the order in which
-        # the corresponding batch gets returned.
-        request._random_seed = random.randint(0, 2**32)
+        request = self.current_request.copy()
         return self.get_upstream_provider().request_batch(request)
