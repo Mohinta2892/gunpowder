@@ -6,8 +6,9 @@ import numpy as np
 
 from gunpowder.array import ArrayKey, Array
 from gunpowder.array_spec import ArraySpec
-from gunpowder.ext import torch, tensorboardX, NoSuchModule
+from gunpowder.ext import torch, wandb, tensorboardX, NoSuchModule
 from gunpowder.nodes.generic_train import GenericTrain
+from datetime import datetime
 
 from typing import Dict, Union, Optional
 
@@ -79,9 +80,9 @@ class Train(GenericTrain):
             After how many iterations to write out tensorboard summaries.
 
         spawn_subprocess (``bool``, optional):
-        
+
             Whether to run the ``train_step`` in a separate process. Default is false.
-            
+
         device (``str``, optional):
 
             Accepts a cuda gpu specifically to train on, helps in multi-card systems.
@@ -96,26 +97,32 @@ class Train(GenericTrain):
 
             Deletes all previous checkpoints for fresh training
             defaults to ``False``.
+
+        use_wandb (``bool``, optional):
+
+            Whether to use Weights and Biases `Wandb` for logging training loss. Default is False.
     """
 
     def __init__(
-        self,
-        model,
-        loss,
-        optimizer,
-        inputs: Dict[str, ArrayKey],
-        outputs: Dict[Union[int, str], ArrayKey],
-        loss_inputs: Dict[Union[int, str], ArrayKey],
-        gradients: Dict[Union[int, str], ArrayKey] = {},
-        array_specs: Optional[Dict[ArrayKey, ArraySpec]] = None,
-        checkpoint_basename: str = "model",
-        save_every: int = 2000,
-        log_dir: str = None,
-        log_every: int = 1,
-        spawn_subprocess: bool = False,
-        device: str = "cuda",
-        checkpoint_folder: str = "./",
-        delete_checkpoints: bool = False,
+            self,
+            model,
+            loss,
+            optimizer,
+            inputs: Dict[str, ArrayKey],
+            outputs: Dict[Union[int, str], ArrayKey],
+            loss_inputs: Dict[Union[int, str], ArrayKey],
+            gradients: Dict[Union[int, str], ArrayKey] = {},
+            array_specs: Optional[Dict[ArrayKey, ArraySpec]] = None,
+            checkpoint_basename: str = "model",
+            save_every: int = 2000,
+            log_dir: str = None,
+            log_every: int = 1,
+            spawn_subprocess: bool = False,
+            device: str = "cuda",
+            checkpoint_folder: str = "./",
+            delete_checkpoints: bool = False,
+            use_wandb=False
+
     ):
 
         if not model.training:
@@ -142,16 +149,40 @@ class Train(GenericTrain):
         self.save_every = save_every
         self.dev = device
         self.checkpoint_folder = checkpoint_folder
-
+        self.use_wandb = use_wandb
         self.iteration = 0
 
-        if not isinstance(tensorboardX, NoSuchModule) and log_dir is not None:
-            self.summary_writer = tensorboardX.SummaryWriter(log_dir)
-            self.log_every = log_every
+        # defaults to wandb logging in offline mode
+        # TODO: use tensorboard via Wandb??
+        if self.use_wandb:
+            if not isinstance(wandb, NoSuchModule) and log_dir is not None:
+                # wandb does not create auto directory. If dir does not exist, it will log in `/temp or /tmp` folder
+                if not os.path.exists(log_dir):
+                    os.makedirs(log_dir, exist_ok=True)
+                self.wandb_config = {}
+                # create a dummy name with timestamp
+                trainer_name = f"wandb_offline_{datetime.now():%Y-%m-%d_%H-%M-%S}"
+                # initialize wandb run and synced to `http://localhost:8080/{<mohinta2892>` with a dummy project name
+                # mode = online, but logs flow to local instance
+                # if mode= offline, logs will be saved on disk and will need to sync to wandb.ai or local instance by
+                # running `wandb sync --project_name <project_name> -p <path/to/logs>
+                self.wandb_logger = wandb.init(
+                    project="dummy_project", name=trainer_name, dir=log_dir,  # mode="offline",
+                    config=self.wandb_config, resume="allow"
+                )
+                self.log_every = log_every
+            else:
+                self.wandb_logger = None
+                if log_dir is not None:
+                    logger.warning("log_dir given, but wandb is not installed")
         else:
-            self.summary_writer = None
-            if log_dir is not None:
-                logger.warning("log_dir given, but tensorboardX is not installed")
+            if not isinstance(tensorboardX, NoSuchModule) and log_dir is not None:
+                self.summary_writer = tensorboardX.SummaryWriter(log_dir)
+                self.log_every = log_every
+            else:
+                self.summary_writer = None
+                if log_dir is not None:
+                    logger.warning("log_dir given, but tensorboardX is not installed")
 
         self.intermediate_layers = {}
         self.register_hooks()
@@ -160,7 +191,7 @@ class Train(GenericTrain):
             print(f"Making checkpoint folder at: {self.checkpoint_folder}")
             os.makedirs(self.checkpoint_folder)
         elif delete_checkpoints:
-            print(f"Re-Making checkpoint folder at: {self.checkpoint_folder}")
+            print(f"Re-making checkpoint folder at: {self.checkpoint_folder}")
             shutil.rmtree(self.checkpoint_folder)
             os.makedirs(self.checkpoint_folder)
 
@@ -276,7 +307,7 @@ class Train(GenericTrain):
             if isinstance(k, str):
                 device_loss_kwargs[k] = device_loss_inputs.pop(k)
         assert (
-            len(device_loss_inputs) == 0
+                len(device_loss_inputs) == 0
         ), f"Not all loss inputs could be interpreted. Failed keys: {device_loss_inputs.keys()}"
 
         self.retain_gradients(request, outputs)
@@ -329,7 +360,6 @@ class Train(GenericTrain):
         batch.iteration = self.iteration
 
         if batch.iteration % self.save_every == 0:
-
             checkpoint_name = self._checkpoint_name(
                 self.checkpoint_basename, batch.iteration
             )
@@ -344,7 +374,12 @@ class Train(GenericTrain):
                 os.path.join(self.checkpoint_folder, checkpoint_name),
             )
 
-        if self.summary_writer and batch.iteration % self.log_every == 0:
+        if self.use_wandb and self.wandb_logger and batch.iteration % self.log_every == 0:
+            # TODO: use watch to track gradients as well??
+            self.wandb_config.update({"loss": batch.loss, "iteration": batch.iteration})
+            self.wandb_logger.log(self.wandb_config)
+
+        elif self.summary_writer and batch.iteration % self.log_every == 0:
             self.summary_writer.add_scalar("loss", batch.loss, batch.iteration)
 
     def __collect_requested_outputs(self, request):
