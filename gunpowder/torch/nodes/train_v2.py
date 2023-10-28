@@ -100,7 +100,11 @@ class Train(GenericTrain):
 
         use_wandb (``bool``, optional):
 
-            Whether to use Weights and Biases `Wandb` for logging training loss. Default is False.
+            Whether to use Weights and Biases `WandB` for logging training loss. Default is False.
+
+        wandb_project_name (``str``, optional):
+            Specify a  wandb project name when using `WandB`. Default is `dummy_project`
+
     """
 
     def __init__(
@@ -121,7 +125,8 @@ class Train(GenericTrain):
             device: str = "cuda",
             checkpoint_folder: str = "./",
             delete_checkpoints: bool = False,
-            use_wandb=False
+            use_wandb=False,
+            project_name='dummy_project'
 
     ):
 
@@ -167,10 +172,14 @@ class Train(GenericTrain):
                 # if mode= offline, logs will be saved on disk and will need to sync to wandb.ai or local instance by
                 # running `wandb sync --project_name <project_name> -p <path/to/logs>
                 self.wandb_logger = wandb.init(
-                    project="dummy_project", name=trainer_name, dir=log_dir,  # mode="offline",
+                    project=project_name, name=trainer_name, dir=log_dir,  # mode="offline",
                     config=self.wandb_config, resume="allow"
                 )
                 self.log_every = log_every
+
+                # if wandb is being used, upload the model params to wandb too
+                wandb.watch(self.model, log="parameters", log_freq=self.save_every, log_graph=True)
+
             else:
                 self.wandb_logger = None
                 if log_dir is not None:
@@ -362,6 +371,21 @@ class Train(GenericTrain):
         if batch.iteration % self.save_every == 0:
             checkpoint_name = self._checkpoint_name(
                 self.checkpoint_basename, batch.iteration
+            )
+
+            logger.info("Creating checkpoint %s", checkpoint_name)
+
+            torch.save(
+                {
+                    "model_state_dict": self.model.state_dict(),
+                    "optimizer_state_dict": self.optimizer.state_dict(),
+                },
+                os.path.join(self.checkpoint_folder, checkpoint_name),
+            )
+            
+            # save the latest batch as 'latest' too; overwritten every-time
+            checkpoint_name = self._checkpoint_name(
+            self.checkpoint_basename, 'latest'
             )
 
             logger.info("Creating checkpoint %s", checkpoint_name)
