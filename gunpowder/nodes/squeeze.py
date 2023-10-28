@@ -1,5 +1,5 @@
 import copy
-from typing import List
+from typing import List, Union
 import logging
 
 import numpy as np
@@ -20,7 +20,7 @@ class Squeeze(BatchFilter):
         axis: Position of the single-dimensional axis to remove, defaults to 0.
     """
 
-    def __init__(self, arrays: List[ArrayKey], axis: int = 0):
+    def __init__(self, arrays: List[ArrayKey], axis: Union[int,None] = None):
         self.arrays = arrays
         self.axis = axis
 
