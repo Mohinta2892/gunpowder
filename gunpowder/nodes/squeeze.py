@@ -17,7 +17,7 @@ class Squeeze(BatchFilter):
 
     Args:
         arrays (List[ArrayKey]): ArrayKeys to squeeze.
-        axis: Position of the single-dimensional axis to remove, defaults to 0.
+        axis: Position of the single-dimensional axis to remove, defaults to None.
     """
 
     def __init__(self, arrays: List[ArrayKey], axis: Union[int,None] = None):
