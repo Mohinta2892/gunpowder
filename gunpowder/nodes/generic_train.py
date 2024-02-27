@@ -189,7 +189,7 @@ class GenericTrain(BatchFilter):
         pass
 
     def _checkpoint_name(self, basename, iteration):
-        return basename + "_checkpoint_" + "%i" % iteration
+        return basename + "_checkpoint_" + ("%i" % iteration if isinstance(iteration, int) else "%s" % iteration)
 
     def _get_latest_checkpoint(self, basename):
         def atoi(text):
@@ -199,6 +199,8 @@ class GenericTrain(BatchFilter):
             return [atoi(c) for c in re.split(r"(\d+)", text)]
 
         checkpoints = glob.glob(basename + "_checkpoint_*")
+        # filter the latest checkpoint out since it may not exist -Author: Samia Mohinta
+        checkpoints = [checkpoint for checkpoint in checkpoints if re.search(r'_\d+$', checkpoint)]
         checkpoints.sort(key=natural_keys)
 
         if len(checkpoints) > 0:

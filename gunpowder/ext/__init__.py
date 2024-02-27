@@ -89,3 +89,15 @@ try:
     import optax
 except ImportError as e:
     optax = NoSuchModule("optax")
+    
+try: 
+    import wandb
+    wandb.login()
+except ImportError as e: 
+    wandb = NoSuchModule("wandb")
+except KeyError as e:
+    # handling it as NoSuchModule for now, until a better fix!
+    wandb = NoSuchModule("wandb")
+except Exception as e:
+    # a broader except 
+    wandb = NoSuchModule("wandb")

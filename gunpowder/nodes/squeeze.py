@@ -1,5 +1,5 @@
 import copy
-from typing import List
+from typing import List, Union
 import logging
 
 import numpy as np
@@ -17,10 +17,10 @@ class Squeeze(BatchFilter):
 
     Args:
         arrays (List[ArrayKey]): ArrayKeys to squeeze.
-        axis: Position of the single-dimensional axis to remove, defaults to 0.
+        axis: Position of the single-dimensional axis to remove, defaults to None.
     """
 
-    def __init__(self, arrays: List[ArrayKey], axis: int = 0):
+    def __init__(self, arrays: List[ArrayKey], axis: Union[int, None] = None):
         self.arrays = arrays
         self.axis = axis
 
@@ -42,7 +42,8 @@ class Squeeze(BatchFilter):
             if array in batch:
                 if not batch[array].spec.nonspatial:
                     spatial_dims = request[array].roi.dims
-                    if self.axis >= batch[array].data.ndim - spatial_dims:
+                    
+                    if self.axis is not None and self.axis >= batch[array].data.ndim - spatial_dims:
                         raise ValueError(
                             (
                                 f"Squeeze.axis={self.axis} not permitted. "
