@@ -106,7 +106,6 @@ class SimpleAugment(BatchFilter):
                     self.permutation_dict[k] = v
 
     def prepare(self, request):
-
         self.mirror = [
             random.random() < self.mirror_probs[d] if self.mirror_mask[d] else 0
             for d in range(self.dims)
@@ -204,9 +203,11 @@ class SimpleAugment(BatchFilter):
                 location_in_total_offset = np.asarray(node.location) - total_roi_offset
                 node.location = np.asarray(
                     [
-                        total_roi_end[dim] - location_in_total_offset[dim]
-                        if m
-                        else node.location[dim]
+                        (
+                            total_roi_end[dim] - location_in_total_offset[dim]
+                            if m
+                            else node.location[dim]
+                        )
                         for dim, m in enumerate(self.mirror)
                     ],
                     dtype=graph.spec.dtype,
@@ -256,9 +257,11 @@ class SimpleAugment(BatchFilter):
         end_of_roi_in_total = roi_in_total_offset + roi_shape
         roi_in_total_offset_mirrored = total_roi_shape - end_of_roi_in_total
         roi_offset = Coordinate(
-            total_roi_offset[d] + roi_in_total_offset_mirrored[d]
-            if mirror[d]
-            else roi_offset[d]
+            (
+                total_roi_offset[d] + roi_in_total_offset_mirrored[d]
+                if mirror[d]
+                else roi_offset[d]
+            )
             for d in range(self.dims)
         )
 
