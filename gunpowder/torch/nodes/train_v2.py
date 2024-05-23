@@ -11,6 +11,9 @@ from gunpowder.nodes.generic_train import GenericTrain
 from datetime import datetime
 
 from typing import Dict, Union, Optional
+# experimental to wrap ddp
+from accelerate import Accelerator
+
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +108,10 @@ class Train(GenericTrain):
         wandb_project_name (``str``, optional):
             Specify a  wandb project name when using `WandB`. Default is `dummy_project`
 
+        use_ddp (``bool``, optional):
+            Train on multiple gpus. Experimental feature implemented via accelerator library from hugging face.
+            Default is `False`.
+
     """
 
     def __init__(
@@ -126,7 +133,8 @@ class Train(GenericTrain):
             checkpoint_folder: str = "./",
             delete_checkpoints: bool = False,
             use_wandb=False,
-            project_name='dummy_project'
+            project_name='dummy_project',
+            use_ddp=False
 
     ):
 
@@ -156,6 +164,11 @@ class Train(GenericTrain):
         self.checkpoint_folder = checkpoint_folder
         self.use_wandb = use_wandb
         self.iteration = 0
+        self.use_ddp = use_ddp
+
+        # Initialize Accelerator for distributed training
+        if self.use_ddp:
+            accelerator = Accelerator()
 
         # defaults to wandb logging in offline mode
         # TODO: use tensorboard via Wandb??
@@ -270,32 +283,62 @@ class Train(GenericTrain):
         inputs = self.__collect_provided_inputs(batch)
         requested_outputs = self.__collect_requested_outputs(request)
 
-        # keys are argument names of model forward pass
-        device_inputs = {
-            k: torch.as_tensor(v, device=self.device) for k, v in inputs.items()
-        }
+        if self.ddp:
+            # Prepare the model and optimizer
+            self.model, self.optimizer = accelerator.prepare(self.model, self.optimizer)
+
+        if self.ddp :
+            # keys are argument names of model forward pass
+            # set to accelerator device
+            device_inputs = {
+                k: torch.as_tensor(v, device=accelerator.device) for k, v in inputs.items()
+            }
+        else:
+            # keys are argument names of model forward pass
+            device_inputs = {
+                k: torch.as_tensor(v, device=self.device) for k, v in inputs.items()
+            }
 
         # get outputs. Keys are tuple indices or model attr names as in self.outputs
         self.optimizer.zero_grad()
-        model_outputs = self.model(**device_inputs)
-        if isinstance(model_outputs, tuple):
-            outputs = {i: model_outputs[i] for i in range(len(model_outputs))}
-        elif isinstance(model_outputs, torch.Tensor):
-            outputs = {0: model_outputs}
+        if self.ddp:
+            with accelerator.autocast():  # Mixed precision training if enabled
+                model_outputs = self.model(**device_inputs)
+                
+                if isinstance(model_outputs, tuple):
+                    outputs = {i: model_outputs[i] for i in range(len(model_outputs))}
+                elif isinstance(model_outputs, torch.Tensor):
+                    outputs = {0: model_outputs}
+                else:
+                    raise RuntimeError(
+                        "Torch train node only supports return types of tuple",
+                        f"and torch.Tensor from model.forward(). not {type(model_outputs)}",
+                    )
         else:
-            raise RuntimeError(
-                "Torch train node only supports return types of tuple",
-                f"and torch.Tensor from model.forward(). not {type(model_outputs)}",
-            )
+            model_outputs = self.model(**device_inputs)
+            if isinstance(model_outputs, tuple):
+                outputs = {i: model_outputs[i] for i in range(len(model_outputs))}
+            elif isinstance(model_outputs, torch.Tensor):
+                outputs = {0: model_outputs}
+            else:
+                raise RuntimeError(
+                    "Torch train node only supports return types of tuple",
+                    f"and torch.Tensor from model.forward(). not {type(model_outputs)}",
+                )
         outputs.update(self.intermediate_layers)
 
         # Some inputs to the loss should come from the batch, not the model
         provided_loss_inputs = self.__collect_provided_loss_inputs(batch)
 
-        device_loss_inputs = {
-            k: torch.as_tensor(v, device=self.device)
-            for k, v in provided_loss_inputs.items()
-        }
+        if self.ddp:
+            device_loss_inputs = {
+            k: torch.as_tensor(v, device=accelerator.device)
+            for k, v in provided_loss_inputs.items()}
+        else:
+            device_loss_inputs = {
+                k: torch.as_tensor(v, device=self.device)
+                for k, v in provided_loss_inputs.items()
+            }
 
         # Some inputs to the loss function should come from the outputs of the model
         # Update device loss inputs with tensors from outputs if available
@@ -329,7 +372,14 @@ class Train(GenericTrain):
             [v.shape for v in device_loss_args],
             {k: v.shape for k, v in device_loss_kwargs.items()})
         loss = self.loss(*device_loss_args, **device_loss_kwargs)
-        loss.backward()
+
+        is self.ddp:
+            # do accelerator backward for loss backwards
+            accelerator.backward(loss)
+        else:
+            loss.backward()
+
+        # take an optimizer step
         self.optimizer.step()
 
         # add requested model outputs to batch
@@ -369,12 +419,13 @@ class Train(GenericTrain):
         batch.iteration = self.iteration
 
         if batch.iteration % self.save_every == 0:
+            # let's keep torch checkpointing for now
+
             checkpoint_name = self._checkpoint_name(
                 self.checkpoint_basename, batch.iteration
             )
 
             logger.info("Creating checkpoint %s", checkpoint_name)
-
             torch.save(
                 {
                     "model_state_dict": self.model.state_dict(),
