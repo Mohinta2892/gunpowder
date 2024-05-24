@@ -101,3 +101,9 @@ except KeyError as e:
 except Exception as e:
     # a broader except 
     wandb = NoSuchModule("wandb")
+
+try:
+    # for distributed training
+    import accelerate
+except ImportError as e:
+    accelerate = NoSuchModule("accelerate")
