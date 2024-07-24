@@ -4,9 +4,7 @@ import numpy as np
 
 # imports for deformed slice
 from skimage.draw import line
-from scipy.ndimage.measurements import label
-from scipy.ndimage.interpolation import map_coordinates
-from scipy.ndimage.morphology import binary_dilation
+from scipy.ndimage import label, map_coordinates, binary_dilation
 
 from gunpowder.batch_request import BatchRequest
 from gunpowder.coordinate import Coordinate
@@ -192,7 +190,7 @@ class DefectAugment(BatchFilter):
             if augmentation_type == "zero_out":
                 raw.data[section_selector] = 0
 
-            elif augmentation_type == "low_contrast":
+            elif augmentation_type == "lower_contrast":
                 section = raw.data[section_selector]
 
                 mean = section.mean()

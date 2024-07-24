@@ -107,11 +107,19 @@ class DeformAugment(BatchFilter):
         self.use_fast_points_transform = use_fast_points_transform
         self.recompute_missing_points = recompute_missing_points
         self.transform_key = transform_key
-        self.graph_raster_voxel_size = Coordinate(graph_raster_voxel_size)
+        self.graph_raster_voxel_size = (
+            Coordinate(graph_raster_voxel_size)
+            if graph_raster_voxel_size is not None
+            else control_point_spacing * 0 + 1
+        )
         assert (
             self.control_point_spacing.dims
             == self.jitter_sigma.dims
             == self.graph_raster_voxel_size.dims
+        ), (
+            f"control_point_spacing: {self.control_point_spacing}, "
+            f"jitter_sigma: {self.jitter_sigma}, "
+            f"and graph_raster_voxel_size must have the same number of dimensions"
         )
 
     def setup(self):
@@ -474,16 +482,20 @@ class DeformAugment(BatchFilter):
                 rot_transformation = create_rotation_transformation(
                     target_shape,
                     random.random() * math.pi,
+                    subsample=self.subsample,
                 )
             else:
                 angle = Rotation.random()
                 rot_transformation = create_3D_rotation_transformation(
-                    target_shape, angle
+                    target_shape, angle, subsample=self.subsample
                 )
 
             local_transformation += rot_transformation
 
         if self.subsample > 1:
+            global_transformation = upscale_transformation(
+                global_transformation, target_shape
+            )
             local_transformation = upscale_transformation(
                 local_transformation, target_shape
             )
