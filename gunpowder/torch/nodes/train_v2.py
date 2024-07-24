@@ -373,7 +373,7 @@ class Train(GenericTrain):
             {k: v.shape for k, v in device_loss_kwargs.items()})
         loss = self.loss(*device_loss_args, **device_loss_kwargs)
 
-        is self.ddp:
+        if self.ddp:
             # do accelerator backward for loss backwards
             accelerator.backward(loss)
         else:
