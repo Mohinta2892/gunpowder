@@ -40,18 +40,25 @@ class SpecifiedLocation(BatchFilter):
             by this node. This data will be appended as an attribute to the
             dataset so it must be a data format compatible with hdf5.
 
-        jitter (``tuple`` of int):
+        jitter (``tuple`` of int or None):
 
             How far to allow the point to shift in each direction.
             Default is None, which places the point in the center.
             Chooses uniformly from [loc - jitter, loc + jitter] in each
             direction.
+
+        center_points (``bool``):
+
+            Defines if the roi should be centered at the retrieved point from the locations list.
+            Default: True
     """
 
-    def __init__(self, locations, choose_randomly=False, extra_data=None, jitter=None):
+    def __init__(self, locations, choose_randomly=False, extra_data=None, jitter=None, center_points=True):
         self.coordinates = locations
+        print(self.coordinates)
         self.choose_randomly = choose_randomly
         self.jitter = jitter
+        self.center_points = center_points
         self.loc_i = -1
         self.upstream_spec = None
         self.specified_shift = None
@@ -113,23 +120,32 @@ class SpecifiedLocation(BatchFilter):
                 ] = self.extra_data[self.loc_i]
 
         for graph_key, spec in request.graph_specs.items():
-            batch.points[graph_key].spec.roi = spec.roi
+            # batch.points[graph_key].spec.roi = spec.roi
+            batch.graphs[graph_key].spec.roi = spec.roi
 
         # change shift point locations to lie within roi
         for graph_key in request.graph_specs.keys():
-            batch.points[graph_key].shift(-self.specified_shift)
+            # batch.points[graph_key].shift(-self.specified_shift)
+            batch.graphs[graph_key].shift(-self.specified_shift)
 
     def _get_next_shift(self, center_shift, voxel_size):
         # gets next coordinate from list
 
         if self.choose_randomly:
             self.loc_i = randrange(len(self.coordinates))
+            # print(self.loc_i)
         else:
             self.loc_i += 1
             if self.loc_i >= len(self.coordinates):
                 self.loc_i = 0
                 logger.warning("Ran out of specified locations, looping list")
-        next_shift = Coordinate(self.coordinates[self.loc_i]) - center_shift
+        # Experimental: don't know which works better, and if the same points always get skipped
+        if self.center_points:
+            # shift to center
+            next_shift = Coordinate(self.coordinates[self.loc_i]) - center_shift
+        else:
+            # do not center
+            next_shift = Coordinate(self.coordinates[self.loc_i])
 
         if self.jitter is not None:
             rnd = []
